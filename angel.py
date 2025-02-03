@@ -6,8 +6,8 @@ from telebot import types
 from bs4 import BeautifulSoup
 from flask import Flask, request
 
-TOKEN = "YOUR_BOT_TOKEN"  # Replace with your bot token
-CHANNEL_ID = -100XXXXXXXXXX  # Replace with your private channel ID
+TOKEN = "7843096547:AAHzkh6gwbeYzUrwQmNlskzft6ZayCRKgNU"  # Replace with your bot token
+CHANNEL_ID = -1002440398569  # Replace with your private channel ID
 
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
@@ -27,8 +27,8 @@ def start_command(message):
     )
 
     keyboard = types.InlineKeyboardMarkup().add(
-        types.InlineKeyboardButton("🔗 GitHub 🔗", url="https://github.com/SudoR2spr"),
-        types.InlineKeyboardButton(text="⚡ Powered By", url="https://t.me/Opleech_WD")
+        types.InlineKeyboardButton("📌Owner", url="https://t.me/mr_official_300"),
+        types.InlineKeyboardButton(text="⚡ Powered By", url="https://t.me/cpflicks")
     )
 
     bot.send_photo(
@@ -71,7 +71,7 @@ def callback_query(call):
 
 # Function to scrape 1TamilMV
 def tamilmv():
-    url = "https://www.1tamilmv.ac/"
+    url = "https://www.1tamilmv.pm/"
     headers = {"User-Agent": "Mozilla/5.0"}
 
     movie_list = []
