@@ -5,15 +5,28 @@ import telebot
 from telebot import types
 from bs4 import BeautifulSoup
 from flask import Flask, request
+import os
 
 TOKEN = "7843096547:AAHzkh6gwbeYzUrwQmNlskzft6ZayCRKgNU"  # Replace with your bot token
 CHANNEL_ID = -1002440398569  # Replace with your private channel ID
+SENT_LINKS_FILE = "sent_links.txt"  # File to store sent links
 
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
 # Global storage for tracking sent links
-sent_links = set()
+def load_sent_links():
+    if os.path.exists(SENT_LINKS_FILE):
+        with open(SENT_LINKS_FILE, "r") as file:
+            return set(file.read().splitlines())
+    return set()
+
+def save_sent_links():
+    with open(SENT_LINKS_FILE, "w") as file:
+        for link in sent_links:
+            file.write(f"{link}\n")
+
+sent_links = load_sent_links()
 
 # Start command
 @bot.message_handler(commands=["start"])
@@ -110,7 +123,9 @@ def get_movie_details(url):
         for mag in mag_links:
             if mag not in sent_links:
                 sent_links.add(mag)
-                msg = f"/qbleech1 {mag}\n\n<b>Tag:</b> <code>@Mr_official_300</code> <code>2142536515</code>"
+                save_sent_links()  # Save the new state of sent links
+
+                msg = f"/qbleech1 {mag}\n<b>Tag:</b> <code>@Mr_official_300</code> <code>2142536515</code>"
                 bot.send_message(CHANNEL_ID, msg, parse_mode="HTML")
 
                 # Delay the next post by 300 seconds (5 minutes)
