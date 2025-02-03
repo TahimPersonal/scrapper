@@ -14,7 +14,7 @@ bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
 # MongoDB connection
-client = MongoClient("mongodb://localhost:27017/")  # Replace with your MongoDB connection string
+client = MongoClient("mongodb+srv://FF:<db_password>@cluster0.ryymb.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")  # Replace with your MongoDB connection string
 db = client["telegram_bot"]
 posts_collection = db["posts"]
 
