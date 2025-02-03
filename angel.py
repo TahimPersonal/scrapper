@@ -4,13 +4,19 @@ import requests
 import telebot
 from bs4 import BeautifulSoup
 from flask import Flask
-import os
+from pymongo import MongoClient
+from datetime import datetime, timedelta
 
 TOKEN = "7843096547:AAHzkh6gwbeYzUrwQmNlskzft6ZayCRKgNU"  # Replace with your bot token
 CHANNEL_ID = -1002440398569  # Replace with your channel ID
 
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
+
+# MongoDB connection
+client = MongoClient("mongodb://localhost:27017/")  # Replace with your MongoDB connection string
+db = client["telegram_bot"]
+posts_collection = db["posts"]
 
 # Function to fetch the latest posts from 1TamilMV main page
 def fetch_latest_posts():
@@ -28,10 +34,8 @@ def fetch_latest_posts():
         new_posts = []
         for post in posts:
             link = post.get("href")
-            if link:
-                # Filter and add only valid links
-                if "forums/topic/" in link:
-                    new_posts.append(link)
+            if link and "forums/topic/" in link:
+                new_posts.append(link)
 
         return new_posts[::-1]  # Reverse order to post oldest first
 
@@ -57,6 +61,20 @@ def fetch_magnet_links(post_link):
     except requests.exceptions.RequestException as e:
         print(f"Error fetching magnet links: {e}")
 
+# Function to check if a post is already in the database
+def is_post_already_sent(post_link):
+    return posts_collection.find_one({"post_link": post_link}) is not None
+
+# Function to save a post to the database
+def save_post_to_db(post_link):
+    posts_collection.insert_one({"post_link": post_link, "timestamp": datetime.utcnow()})
+
+# Function to fetch old posts from the database
+def fetch_old_posts():
+    # Fetch all posts from the database, sorted by timestamp (oldest first)
+    old_posts = posts_collection.find().sort("timestamp", 1)
+    return [post["post_link"] for post in old_posts]
+
 # Background scraper
 def background_scraper():
     while True:
@@ -66,14 +84,18 @@ def background_scraper():
         if new_posts:
             print(f"Found {len(new_posts)} new post(s). Posting now...")
             for link in new_posts:
-                fetch_magnet_links(link)
+                if not is_post_already_sent(link):
+                    fetch_magnet_links(link)
+                    save_post_to_db(link)
+                else:
+                    print(f"Post already sent: {link}")
         else:
-            print("No new posts found, posting the 'no new posts' message.")
-            msg = "No new post found, I will try after 10 minutes."
-            bot.send_message(CHANNEL_ID, msg)
-
-            # Sleep for 10 minutes after posting "No new posts"
-            time.sleep(600)
+            print("No new posts found, checking for old posts...")
+            old_posts = fetch_old_posts()
+            if old_posts:
+                print(f"Found {len(old_posts)} old post(s). Posting now...")
+                for link in old_posts:
+                    fetch_magnet_links(link)
 
         # Sleep for 10 minutes before checking again
         time.sleep(600)
