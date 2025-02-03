@@ -54,7 +54,7 @@ def fetch_magnet_links(post_link):
 
         mag_links = [a["href"] for a in soup.find_all("a", href=True) if "magnet:" in a["href"]]
         for mag in mag_links:
-            msg = f"/qbleech {mag}\n<b>Tag:</b> <code>@Mr_official_300</code> <code>2142536515</code>"
+            msg = f"/qbleech1 {mag}\n<b>Tag:</b> <code>@Mr_official_300</code> <code>2142536515</code>"
             bot.send_message(CHANNEL_ID, msg, parse_mode="HTML")
             time.sleep(300)  # Delay between posts
     except requests.exceptions.RequestException as e:
