@@ -72,6 +72,9 @@ def background_scraper():
             msg = "No new post found, I will try after 10 minutes."
             bot.send_message(CHANNEL_ID, msg)
 
+            # Sleep for 10 minutes after posting "No new posts"
+            time.sleep(600)
+
         # Sleep for 10 minutes before checking again
         time.sleep(600)
 
