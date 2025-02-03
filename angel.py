@@ -10,11 +10,12 @@ import os
 TOKEN = "7843096547:AAHzkh6gwbeYzUrwQmNlskzft6ZayCRKgNU"  # Replace with your bot token
 CHANNEL_ID = -1002440398569  # Replace with your private channel ID
 SENT_LINKS_FILE = "sent_links.txt"  # File to store sent links
+LAST_TIMESTAMP_FILE = "last_timestamp.txt"  # File to store the last post timestamp
 
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# Global storage for tracking sent links
+# Load and save sent links to avoid reposting
 def load_sent_links():
     if os.path.exists(SENT_LINKS_FILE):
         with open(SENT_LINKS_FILE, "r") as file:
@@ -26,7 +27,19 @@ def save_sent_links():
         for link in sent_links:
             file.write(f"{link}\n")
 
+# Load the last post timestamp
+def load_last_timestamp():
+    if os.path.exists(LAST_TIMESTAMP_FILE):
+        with open(LAST_TIMESTAMP_FILE, "r") as file:
+            return file.read().strip()
+    return "2000-01-01T00:00:00"  # A very old timestamp if no last timestamp is saved
+
+def save_last_timestamp(timestamp):
+    with open(LAST_TIMESTAMP_FILE, "w") as file:
+        file.write(timestamp)
+
 sent_links = load_sent_links()
+last_timestamp = load_last_timestamp()
 
 # Start command
 @bot.message_handler(commands=["start"])
@@ -98,17 +111,17 @@ def tamilmv():
     for i in range(min(20, len(movies))):
         title = movies[i].find("a").text.strip()
         link = movies[i].find("a")["href"]
-        movie_list.append(title)
+        post_timestamp = movies[i].find("time").get("datetime") if movies[i].find("time") else "No timestamp available"
 
-        # Check if "time" exists before trying to access its attributes
-        time_tag = movies[i].find("time")
-        if time_tag:
-            post_timestamp = time_tag.get("datetime")  # Safely get the datetime attribute
-        else:
-            post_timestamp = "No timestamp available"  # Handle case if there is no "time" tag
+        # Only add movies that are newer than the last timestamp
+        if post_timestamp > last_timestamp:
+            movie_list.append(title)
+            movie_details = get_movie_details(link)
+            real_dict[title] = movie_details
 
-        movie_details = get_movie_details(link)
-        real_dict[title] = movie_details
+            # Update the last timestamp if this is the newest post
+            if post_timestamp > last_timestamp:
+                save_last_timestamp(post_timestamp)
 
     return movie_list, real_dict
 
@@ -119,6 +132,8 @@ def get_movie_details(url):
         soup = BeautifulSoup(html.text, "lxml")
 
         mag_links = [a["href"] for a in soup.find_all("a", href=True) if "magnet:" in a["href"]]
+
+        new_posts_found = False  # Track if any new post is found
 
         for mag in mag_links:
             if mag not in sent_links:
@@ -131,17 +146,25 @@ def get_movie_details(url):
                 # Delay the next post by 300 seconds (5 minutes)
                 time.sleep(300)  # Delay added here to wait 5 minutes before posting next magnet
 
-        return mag_links
+                new_posts_found = True  # Mark that a new post has been found
+
+        return mag_links, new_posts_found
     except Exception as e:
         print(f"Error fetching movie details: {e}")
-        return []
+        return [], False
 
 # Background scraper every 10 minutes
 def background_scraper():
     while True:
         print("🔄 Checking for new movies...")
-        tamilmv()
-        time.sleep(600)
+        movie_list, new_posts_found = tamilmv()
+
+        if new_posts_found:
+            print("New posts found, posting them...")
+        else:
+            print("No new posts found, sleeping...")
+
+        time.sleep(600)  # Sleep for 10 minutes before checking again
 
 # Flask health check
 @app.route("/")
