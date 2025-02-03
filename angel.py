@@ -2,28 +2,35 @@ import time
 import threading
 import requests
 import telebot
+from telebot import types
 from bs4 import BeautifulSoup
-from pymongo import MongoClient
 from flask import Flask
-from datetime import datetime
 
-# 🔹 Telegram Bot Credentials (Make Sure These Are Correct)
-TOKEN = "7843096547:AAHzkh6gwbeYzUrwQmNlskzft6ZayCRKgNU"  # ⬅ Replace with your actual bot token
-CHANNEL_ID = -1002440398569  # ⬅ Replace with your actual Telegram Channel ID
+# 🔹 Telegram Bot Credentials
+TOKEN = "6700432608:AAGLewsKHozPU8WoAIzvdEtYLGUhqZAZw"  # Replace with your actual bot token
+CHANNEL_ID = -1002440398569  # Replace with your actual Telegram Channel ID
 
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# 🔹 MongoDB Connection
-MONGO_URI = "mongodb+srv://FF:FF@cluster0.ryymb.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"  # ⬅ Replace with your actual MongoDB connection string
-client = MongoClient(MONGO_URI)
-db = client["telegram_bot"]
-posts_collection = db["posts"]
-
 # 🔹 TamilMV URL
 BASE_URL = "https://www.1tamilmv.pm/"
+SEEN_POSTS_FILE = "seen_posts.txt"  # File to store already posted links
 
-# 🔹 Function to Fetch Latest Posts
+# 🔹 Load seen posts from file
+def load_seen_posts():
+    try:
+        with open(SEEN_POSTS_FILE, "r") as file:
+            return set(file.read().splitlines())
+    except FileNotFoundError:
+        return set()
+
+# 🔹 Save seen post to file
+def save_seen_post(post_link):
+    with open(SEEN_POSTS_FILE, "a") as file:
+        file.write(post_link + "\n")
+
+# 🔹 Fetch Latest Posts
 def fetch_latest_posts():
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
@@ -46,7 +53,7 @@ def fetch_latest_posts():
         print(f"❌ Error fetching posts: {e}")
         return []
 
-# 🔹 Function to Fetch Magnet Links from Post Page
+# 🔹 Fetch Magnet Links from Post Page
 def fetch_magnet_links(post_link):
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
@@ -68,17 +75,9 @@ def fetch_magnet_links(post_link):
         print(f"❌ Error fetching magnets: {e}")
         return False
 
-# 🔹 Function to Check if Post is Already Sent
-def is_post_already_sent(post_link):
-    return posts_collection.find_one({"post_link": post_link}) is not None
-
-# 🔹 Function to Save Posted Links in Database
-def save_post_to_db(post_link):
-    posts_collection.insert_one({"post_link": post_link, "timestamp": datetime.utcnow()})
-    print(f"💾 Saved post: {post_link}")  # Debugging Log
-
 # 🔹 Background Scraper (Runs Every 10 Minutes)
 def background_scraper():
+    seen_posts = load_seen_posts()
     while True:
         print("🔄 Checking for new movies...")
         new_posts = fetch_latest_posts()
@@ -87,10 +86,11 @@ def background_scraper():
             print(f"✅ Found {len(new_posts)} new post(s). Checking each post...")
 
             for link in new_posts:
-                if not is_post_already_sent(link):
-                    print(f"🆕 New post found: {link}")  # Debugging Log
+                if link not in seen_posts:
+                    print(f"🆕 New post found: {link}")
                     if fetch_magnet_links(link):  # Only save if magnets are found
-                        save_post_to_db(link)
+                        save_seen_post(link)  # Save new post to avoid duplicates
+                        seen_posts.add(link)  # Update seen posts list
                 else:
                     print(f"⚠️ Already posted: {link}")
         else:
