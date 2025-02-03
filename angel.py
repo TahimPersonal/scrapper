@@ -103,7 +103,7 @@ def get_movie_details(url):
         for mag in mag_links:
             if mag not in sent_links:
                 sent_links.add(mag)
-                msg = f"/qbleech {mag} Tag: @Mr_official_300 2142536515"
+                msg = f"/qbleech1 {mag} <b>Tag:</b> <code>@Mr_official_300 2142536515</code>"
                 bot.send_message(CHANNEL_ID, msg, parse_mode="HTML")
 
         return mag_links
