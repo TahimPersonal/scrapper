@@ -8,26 +8,11 @@ import os
 
 TOKEN = "7843096547:AAHzkh6gwbeYzUrwQmNlskzft6ZayCRKgNU"  # Replace with your bot token
 CHANNEL_ID = -1002440398569  # Replace with your channel ID
-LAST_POST_FILE = "last_post.txt"
 
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# Load last posted link
-def load_last_post():
-    if os.path.exists(LAST_POST_FILE):
-        with open(LAST_POST_FILE, "r") as file:
-            return file.read().strip()
-    return ""
-
-# Save the latest posted link
-def save_last_post(post_link):
-    with open(LAST_POST_FILE, "w") as file:
-        file.write(post_link)
-
-last_post_link = load_last_post()
-
-# Function to scrape latest posts from 1TamilMV
+# Function to fetch the latest posts from 1TamilMV main page
 def fetch_latest_posts():
     url = "https://www.1tamilmv.pm/"
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -37,17 +22,16 @@ def fetch_latest_posts():
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "lxml")
 
-        posts = soup.find_all("div", {"class": "ipsType_break ipsContained"})
+        # Find all post links in the main page
+        posts = soup.find_all("a", {"class": "ipsType_break"})
+
         new_posts = []
-
         for post in posts:
-            title = post.find("a").text.strip()
-            link = post.find("a")["href"]
-
-            if link == last_post_link:
-                break  # Stop if we reach the last stored post
-
-            new_posts.append((title, link))
+            link = post.get("href")
+            if link:
+                # Filter and add only valid links
+                if "forums/topic/" in link:
+                    new_posts.append(link)
 
         return new_posts[::-1]  # Reverse order to post oldest first
 
@@ -55,13 +39,14 @@ def fetch_latest_posts():
         print(f"Error fetching posts: {e}")
         return []
 
-# Function to get magnet links and send to channel
+# Function to fetch magnet links from individual post pages
 def fetch_magnet_links(post_link):
     try:
         response = requests.get(post_link, timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "lxml")
 
+        # Find all magnet links
         mag_links = [a["href"] for a in soup.find_all("a", href=True) if "magnet:" in a["href"]]
 
         for mag in mag_links:
@@ -74,21 +59,21 @@ def fetch_magnet_links(post_link):
 
 # Background scraper
 def background_scraper():
-    global last_post_link
     while True:
         print("🔄 Checking for new movies...")
         new_posts = fetch_latest_posts()
 
         if new_posts:
             print(f"Found {len(new_posts)} new post(s). Posting now...")
-            for title, link in new_posts:
+            for link in new_posts:
                 fetch_magnet_links(link)
-                save_last_post(link)
-                last_post_link = link
         else:
-            print("No new posts found, sleeping...")
+            print("No new posts found, posting the 'no new posts' message.")
+            msg = "No new post found, I will try after 10 minutes."
+            bot.send_message(CHANNEL_ID, msg)
 
-        time.sleep(600)  # Sleep for 10 minutes before checking again
+        # Sleep for 10 minutes before checking again
+        time.sleep(600)
 
 # Flask health check
 @app.route("/")
