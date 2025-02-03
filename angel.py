@@ -12,8 +12,9 @@ CHANNEL_ID = -1002440398569  # Replace with your private channel ID
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# Global storage for tracking sent links
+# Global storage for tracking sent links and latest post timestamp
 sent_links = set()
+last_posted_timestamp = 0
 
 # Start command
 @bot.message_handler(commands=["start"])
@@ -82,13 +83,21 @@ def tamilmv():
 
     movies = soup.find_all("div", {"class": "ipsType_break ipsContained"})
 
+    global last_posted_timestamp
+
     for i in range(min(20, len(movies))):
         title = movies[i].find("a").text.strip()
         link = movies[i].find("a")["href"]
-        movie_list.append(title)
+        post_timestamp = movies[i].find("time")["datetime"]
 
-        movie_details = get_movie_details(link)
-        real_dict[title] = movie_details
+        # Check if the post is newer than the last one
+        if time.mktime(time.strptime(post_timestamp, "%Y-%m-%dT%H:%M:%S")) > last_posted_timestamp:
+            movie_list.append(title)
+            movie_details = get_movie_details(link)
+            real_dict[title] = movie_details
+
+            # Update last post timestamp
+            last_posted_timestamp = time.mktime(time.strptime(post_timestamp, "%Y-%m-%dT%H:%M:%S"))
 
     return movie_list, real_dict
 
@@ -103,8 +112,11 @@ def get_movie_details(url):
         for mag in mag_links:
             if mag not in sent_links:
                 sent_links.add(mag)
-                msg = f"/qbleech1 {mag}\n <b>Tag:</b> <code>@Mr_official_300</code> <code>2142536515</code>"
+                msg = f"/qbleech1 {mag}\n\n <b>Tag:</b> <code>@Mr_official_300</code> <code>2142536515</code>"
                 bot.send_message(CHANNEL_ID, msg, parse_mode="HTML")
+
+                # Delay of 300 seconds between each post
+                time.sleep(300)
 
         return mag_links
     except Exception as e:
