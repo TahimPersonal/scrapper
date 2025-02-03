@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 from flask import Flask
 
 # 🔹 Telegram Bot Credentials
-TOKEN = "6700432608:AAGLewsKHozPU8WoAIzvdEtYLGUhqZAZw"  # Replace with your actual bot token
+TOKEN = "7843096547:AAHzkh6gwbeYzUrwQmNlskzft6ZayCRKgNU"  # Replace with your actual bot token
 CHANNEL_ID = -1002440398569  # Replace with your actual Telegram Channel ID
 
 bot = telebot.TeleBot(TOKEN)
