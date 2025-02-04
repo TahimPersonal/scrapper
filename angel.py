@@ -27,13 +27,17 @@ def load_seen_posts():
 
 # 🔹 Save seen post to file
 def save_seen_post(post_link):
-    with open(SEEN_POSTS_FILE, "a") as file:
-        file.write(post_link + "\n")
+    try:
+        with open(SEEN_POSTS_FILE, "a") as file:
+            file.write(post_link + "\n")
+    except Exception as e:
+        print(f"❌ Error saving post: {e}")
 
 # 🔹 Fetch Latest Posts
 def fetch_latest_posts():
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
+        print("⏳ Fetching latest posts from the website...")
         response = requests.get(BASE_URL, headers=headers, timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "lxml")
@@ -48,6 +52,7 @@ def fetch_latest_posts():
                 full_link = BASE_URL + link if not link.startswith("http") else link
                 new_posts.append(full_link)
 
+        print(f"✅ Found {len(new_posts)} new posts.")
         return new_posts[::-1]  # Reverse order to post older first
     except requests.exceptions.RequestException as e:
         print(f"❌ Error fetching posts: {e}")
@@ -57,12 +62,14 @@ def fetch_latest_posts():
 def fetch_magnet_links(post_link):
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
+        print(f"⏳ Fetching magnet links from {post_link}...")
         response = requests.get(post_link, headers=headers, timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "lxml")
 
         # Extract magnet links
         magnet_links = [a["href"] for a in soup.find_all("a", href=True) if "magnet:" in a["href"]]
+        print(f"✅ Found {len(magnet_links)} magnet links.")
 
         for magnet in magnet_links:
             msg = f"/qbleech {magnet}\n<b>Tag:</b> <code>@Mr_official_300</code> <code>2142536515</code>"
@@ -78,7 +85,6 @@ def fetch_magnet_links(post_link):
 # 🔹 Background Scraper (Runs Every 10 Minutes)
 def background_scraper():
     seen_posts = load_seen_posts()
-    old_posts = load_seen_posts()  # Used for scraping old posts
 
     while True:
         print("🔄 Checking for new movies...")
@@ -97,15 +103,6 @@ def background_scraper():
                     print(f"⚠️ Already posted: {link}")
         else:
             print("❌ No new posts found.")
-            print("🔄 Checking old posts...")
-
-            # Scrape old posts one by one
-            for link in old_posts:
-                if link not in seen_posts:
-                    print(f"🔄 Scraping old post: {link}")
-                    if fetch_magnet_links(link):  # Only save if magnets are found
-                        save_seen_post(link)  # Save post link
-                        seen_posts.add(link)  # Update seen posts list
 
         print("🕐 Waiting 10 minutes before next check...")
         time.sleep(600)  # Wait 10 minutes before checking again
@@ -117,15 +114,27 @@ def health_check():
 
 # 🔹 Run Flask for Koyeb Health Checks
 def run_flask():
-    app.run(host="0.0.0.0", port=3000)
+    try:
+        app.run(host="0.0.0.0", port=3000)
+    except Exception as e:
+        print(f"❌ Error starting Flask: {e}")
+
+# 🔹 Start Flask and Scraper in Separate Threads
+def start_threads():
+    # Start Flask in a separate thread for health check
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+
+    # Start background scraper in another thread
+    scraper_thread = threading.Thread(target=background_scraper, daemon=True)
+    scraper_thread.start()
 
 if __name__ == "__main__":
-    # Start Flask and Scraper in Separate Threads
-    threading.Thread(target=run_flask, daemon=True).start()
-    threading.Thread(target=background_scraper, daemon=True).start()
-
-    # Start Telegram Bot Polling
     try:
+        # Start the threads for Flask and Scraper
+        start_threads()
+
+        # Start Telegram Bot Polling
         bot.infinity_polling(timeout=10, long_polling_timeout=5)
     except Exception as e:
-        print(f"❌ Bot polling error: {e}")
+        print(f"❌ Error with Telegram Bot: {e}")
