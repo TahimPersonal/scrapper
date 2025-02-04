@@ -78,6 +78,8 @@ def fetch_magnet_links(post_link):
 # 🔹 Background Scraper (Runs Every 10 Minutes)
 def background_scraper():
     seen_posts = load_seen_posts()
+    old_posts = load_seen_posts()  # Used for scraping old posts
+
     while True:
         print("🔄 Checking for new movies...")
         new_posts = fetch_latest_posts()
@@ -95,6 +97,15 @@ def background_scraper():
                     print(f"⚠️ Already posted: {link}")
         else:
             print("❌ No new posts found.")
+            print("🔄 Checking old posts...")
+
+            # Scrape old posts one by one
+            for link in old_posts:
+                if link not in seen_posts:
+                    print(f"🔄 Scraping old post: {link}")
+                    if fetch_magnet_links(link):  # Only save if magnets are found
+                        save_seen_post(link)  # Save post link
+                        seen_posts.add(link)  # Update seen posts list
 
         print("🕐 Waiting 10 minutes before next check...")
         time.sleep(600)  # Wait 10 minutes before checking again
