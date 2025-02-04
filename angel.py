@@ -20,42 +20,8 @@ app = Flask(__name__)
 
 # 🔹 TamilMV URL
 BASE_URL = "https://www.1tamilmv.pm/"
-SEEN_POSTS_FILE = "seen_posts.txt"  # File to store already posted links
-OLD_POSTS_FILE = "old_posts.txt"  # File to store older posts for backup sending
 
-# 🔹 Load seen posts from file
-def load_seen_posts():
-    try:
-        with open(SEEN_POSTS_FILE, "r") as file:
-            return set(file.read().splitlines())
-    except FileNotFoundError:
-        return set()
-
-# 🔹 Save seen post to file
-def save_seen_post(post_link):
-    try:
-        with open(SEEN_POSTS_FILE, "a") as file:
-            file.write(post_link + "\n")
-    except Exception as e:
-        logger.error(f"❌ Error saving post: {e}")
-
-# 🔹 Load old posts from file
-def load_old_posts():
-    try:
-        with open(OLD_POSTS_FILE, "r") as file:
-            return file.read().splitlines()
-    except FileNotFoundError:
-        return []
-
-# 🔹 Save old posts to file
-def save_old_post(post_link):
-    try:
-        with open(OLD_POSTS_FILE, "a") as file:
-            file.write(post_link + "\n")
-    except Exception as e:
-        logger.error(f"❌ Error saving old post: {e}")
-
-# 🔹 Fetch Latest Posts
+# 🔹 Fetch Latest Posts from the Website
 def fetch_latest_posts():
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
@@ -64,18 +30,18 @@ def fetch_latest_posts():
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "lxml")
 
-        # Extract post links
+        # Extract post links (these are the individual forum topic links)
         posts = soup.find_all("a", class_="ipsType_break")
         new_posts = []
 
         for post in posts:
             link = post.get("href")
-            if link and "forums/topic/" in link:
+            if link and "forums/topic/" in link:  # Filter for valid post links
                 full_link = BASE_URL + link if not link.startswith("http") else link
                 new_posts.append(full_link)
 
         logger.info(f"✅ Found {len(new_posts)} new posts.")
-        return new_posts[::-1]  # Reverse order to post older first
+        return new_posts[::-1]  # Reverse order to post older posts first
     except requests.exceptions.RequestException as e:
         logger.error(f"❌ Error fetching posts: {e}")
         return []
@@ -89,7 +55,7 @@ def fetch_magnet_links(post_link):
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "lxml")
 
-        # Extract magnet links
+        # Extract magnet links from the post page
         magnet_links = [a["href"] for a in soup.find_all("a", href=True) if "magnet:" in a["href"]]
         logger.info(f"✅ Found {len(magnet_links)} magnet links.")
 
@@ -104,40 +70,35 @@ def fetch_magnet_links(post_link):
         logger.error(f"❌ Error fetching magnets: {e}")
         return False
 
+# 🔹 Send Old Posts from the Website
+def send_old_posts():
+    logger.info("🔄 Sending old posts from the website...")
+    old_posts = fetch_latest_posts()  # Fetch old posts (same way as latest posts)
+    for post in old_posts:
+        if fetch_magnet_links(post):
+            time.sleep(150)  # Prevent spam
+
 # 🔹 Background Scraper (Runs Every 10 Minutes)
 def background_scraper():
-    seen_posts = load_seen_posts()
-    old_posts = load_old_posts()
-    new_posts_sent = False  # Track if new posts were found and sent
-
     while True:
         logger.info("🔄 Checking for new movies...")
         new_posts = fetch_latest_posts()
 
         if new_posts:
-            logger.info(f"✅ Found {len(new_posts)} new post(s). Checking each post...")
-            new_posts_sent = False  # Reset flag to check for old posts next time
-
+            logger.info(f"✅ Found {len(new_posts)} new post(s). Sending new posts...")
             for link in new_posts:
-                if link not in seen_posts:
-                    logger.info(f"🆕 New post found: {link}")
-                    if fetch_magnet_links(link):  # Only save if magnets are found
-                        save_seen_post(link)  # Save new post to avoid duplicates
-                        seen_posts.add(link)  # Update seen posts list
-                    save_old_post(link)  # Save for old posts
-                else:
-                    logger.info(f"⚠️ Already posted: {link}")
+                if fetch_magnet_links(link):  # Send new posts if they contain magnets
+                    logger.info(f"✅ New post sent: {link}")
+                    time.sleep(150)
 
+            logger.info("✅ Finished sending new posts. Now sending old posts...")
+            send_old_posts()  # Send old posts after new ones
         else:
-            logger.warning("❌ No new posts found. Sending old posts...")
-            for old_post in old_posts:
-                if fetch_magnet_links(old_post):
-                    logger.info(f"Sent old post: {old_post}")
-                time.sleep(10)  # Pause to avoid spamming
+            logger.warning("❌ No new posts found. Sending old posts instead.")
+            send_old_posts()  # Send old posts if no new ones are found
 
-        if not new_posts_sent:
-            logger.info("🕐 Waiting 10 minutes before next check...")
-            time.sleep(600)  # Wait 10 minutes before checking again
+        logger.info("🕐 Waiting 10 minutes before next check...")
+        time.sleep(600)  # Wait 10 minutes before checking again
 
 # 🔹 Flask Health Check
 @app.route("/")
